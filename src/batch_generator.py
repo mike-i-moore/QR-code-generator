@@ -2,7 +2,8 @@
 """
 Batch QR Code Generator
 
-This script provides a user-friendly interface for generating QR codes from promo codes in a CSV file.
+This script provides a user-friendly interface for generating QR codes from promo codes
+in a CSV file (with a 'promo_code' column) or a TXT file (with one code per line).
 """
 
 import os
@@ -15,16 +16,23 @@ def get_user_input():
     Prompt the user for input parameters.
     
     Returns:
-        tuple: (csv_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size)
+        tuple: (input_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size)
     """
     print("=== QR Code Generator for Promotional Codes ===")
     
-    # Get the CSV file path
+    # Get the input file path
     while True:
-        csv_file = input("Enter the path to the CSV file with promo codes: ").strip()
-        if os.path.exists(csv_file):
+        input_file = input("Enter the path to the file with promo codes (CSV or TXT): ").strip()
+        if os.path.exists(input_file):
+            # Check file extension
+            _, ext = os.path.splitext(input_file)
+            if ext.lower() not in ['.csv', '.txt']:
+                print(f"Warning: File '{input_file}' does not have a .csv or .txt extension.")
+                confirm = input("Continue anyway? (y/n): ").strip().lower()
+                if confirm not in ['y', 'yes']:
+                    continue
             break
-        print(f"Error: File '{csv_file}' does not exist. Please enter a valid path.")
+        print(f"Error: File '{input_file}' does not exist. Please enter a valid path.")
     
     # Get the base URL
     base_url = input("Enter the base URL (e.g., https://example.com/promo): ").strip()
@@ -67,17 +75,17 @@ def get_user_input():
             if pdf_page_size_input == 'a4':
                 pdf_page_size = 'a4'
     
-    return csv_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size
+    return input_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size
 
 
 def main():
     try:
         # Get user input
-        csv_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size = get_user_input()
+        input_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size = get_user_input()
         
         # Generate QR codes
         print("\nGenerating QR codes...")
-        generate_qr_codes(csv_file, base_url, output_dir, utm_param_name, 
+        generate_qr_codes(input_file, base_url, output_dir, utm_param_name, 
                         create_pdf, pdf_filename, pdf_page_size,
                         create_png, png_size)
         

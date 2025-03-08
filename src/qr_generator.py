@@ -2,9 +2,9 @@
 """
 QR Code Generator for Promotional Codes
 
-This script takes a CSV file containing promo codes and generates QR code vector files (SVG)
-where each QR code links to a website with the promo code as a UTM parameter.
-It can also generate PNG files and compile QR codes into a PDF.
+This script takes a CSV file containing promo codes or a TXT file with one code per line,
+and generates QR code vector files (SVG) where each QR code links to a website with 
+the promo code as a UTM parameter. It can also generate PNG files and compile QR codes into a PDF.
 """
 
 import os
@@ -22,14 +22,14 @@ except ImportError:
     PDF_SUPPORT = False
 
 
-def generate_qr_codes(csv_file, base_url, output_dir, utm_param_name='promo', 
+def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo', 
                     create_pdf=False, pdf_filename=None, pdf_page_size='letter',
                     create_png=False, png_size=300):
     """
-    Generate QR codes from promo codes in a CSV file.
+    Generate QR codes from promo codes in a CSV or TXT file.
     
     Args:
-        csv_file (str): Path to the CSV file containing promo codes.
+        input_file (str): Path to the CSV or TXT file containing promo codes.
         base_url (str): Base URL to which the promo code will be appended.
         output_dir (str): Directory where QR code files will be saved.
         utm_param_name (str): Name of the UTM parameter. Default is 'promo'.
@@ -51,15 +51,39 @@ def generate_qr_codes(csv_file, base_url, output_dir, utm_param_name='promo',
         png_dir = os.path.join(output_dir, "png")
         os.makedirs(png_dir, exist_ok=True)
     
-    # Read the CSV file
-    try:
-        df = pd.read_csv(csv_file)
-        if 'promo_code' not in df.columns:
-            raise ValueError("CSV file must contain a 'promo_code' column")
-    except Exception as e:
-        print(f"Error reading CSV file: {e}")
+    # Determine file type based on extension
+    file_extension = os.path.splitext(input_file)[1].lower()
+    
+    # Read the input file based on its type
+    promo_codes = []
+    
+    if file_extension == '.csv':
+        # Read CSV file
+        try:
+            df = pd.read_csv(input_file)
+            if 'promo_code' not in df.columns:
+                raise ValueError("CSV file must contain a 'promo_code' column")
+            promo_codes = df['promo_code'].tolist()
+        except Exception as e:
+            print(f"Error reading CSV file: {e}")
+            return
+    elif file_extension == '.txt':
+        # Read TXT file - one promo code per line
+        try:
+            with open(input_file, 'r') as f:
+                # Strip whitespace and filter out empty lines
+                promo_codes = [line.strip() for line in f if line.strip()]
+        except Exception as e:
+            print(f"Error reading TXT file: {e}")
+            return
+    else:
+        print(f"Unsupported file type: {file_extension}. Please use .csv or .txt files.")
         return
     
+    if not promo_codes:
+        print("No promo codes found in the input file.")
+        return
+        
     # Ensure base_url ends with a question mark or ampersand for proper parameter appending
     if '?' not in base_url:
         base_url += '?'
@@ -67,8 +91,7 @@ def generate_qr_codes(csv_file, base_url, output_dir, utm_param_name='promo',
         base_url += '&'
     
     # Generate QR code for each promo code
-    for index, row in df.iterrows():
-        promo_code = row['promo_code']
+    for promo_code in promo_codes:
         # Create the full URL with the promo code as a UTM parameter
         full_url = f"{base_url}{utm_param_name}={promo_code}"
         
@@ -118,8 +141,8 @@ def generate_qr_codes(csv_file, base_url, output_dir, utm_param_name='promo',
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate QR codes from promo codes in a CSV file.')
-    parser.add_argument('csv_file', help='Path to the CSV file containing promo codes')
+    parser = argparse.ArgumentParser(description='Generate QR codes from promo codes in a CSV or TXT file.')
+    parser.add_argument('input_file', help='Path to the file containing promo codes (CSV with a "promo_code" column or TXT with one code per line)')
     parser.add_argument('base_url', help='Base URL to which the promo code will be appended')
     parser.add_argument('--output-dir', default='../output', help='Directory where QR code files will be saved')
     parser.add_argument('--utm-param-name', default='promo', help='Name of the UTM parameter (default: promo)')
@@ -135,7 +158,7 @@ def main():
     
     args = parser.parse_args()
     
-    generate_qr_codes(args.csv_file, args.base_url, args.output_dir, args.utm_param_name,
+    generate_qr_codes(args.input_file, args.base_url, args.output_dir, args.utm_param_name,
                      args.create_pdf, args.pdf_filename, args.pdf_page_size,
                      args.create_png, args.png_size)
 

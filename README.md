@@ -1,14 +1,14 @@
 # QR Code Generator for Promotional Codes
 
 
-This tool generates QR code files from promotional codes in a CSV file. Each QR code links to a website where the promo code is included as a UTM parameter. The tool supports multiple output formats:
+This tool generates QR code files from promotional codes in a CSV file or TXT file. Each QR code links to a website where the promo code is included as a UTM parameter. The tool supports multiple output formats:
 - SVG vector files for high-quality printing and scaling
 - PNG raster images for digital use and easy sharing
 - PDF compilation with one QR code per page for easy printing
 
 ## Features
 
-- Generates QR codes from promo codes in a CSV file
+- Generates QR codes from promo codes in a CSV file or TXT file
 - Multiple output formats: SVG, PNG, and PDF
 - Organized file structure with separate folders for each format
 - Customizable PNG size and PDF page size
@@ -52,8 +52,11 @@ deactivate
 
 ## Usage
 
-### Preparing Your CSV File
+### Preparing Your Input File
 
+You can use either a CSV file or a TXT file with your promotional codes:
+
+#### Option 1: CSV File
 Create a CSV file with a column named `promo_code`. Example:
 
 ```
@@ -65,7 +68,18 @@ HOLIDAY25
 SPRING5
 ```
 
-A sample CSV file is provided in the `sample_data` directory.
+#### Option 2: TXT File
+Create a TXT file with one promo code per line. Example:
+
+```
+SUMMER10
+WELCOME15
+FALL20
+HOLIDAY25
+SPRING5
+```
+
+Sample CSV and TXT files are provided in the `sample_data` directory.
 
 ### Command-Line Usage
 
@@ -73,20 +87,23 @@ Run the QR code generator directly from the command line:
 
 ```bash
 cd src
-python qr_generator.py [CSV_FILE] [BASE_URL] [--output-dir OUTPUT_DIR] [--utm-param-name UTM_PARAM_NAME] [--create-pdf] [--pdf-filename PDF_FILE] [--pdf-page-size {letter,a4}] [--create-png] [--png-size SIZE]
+python qr_generator.py [INPUT_FILE] [BASE_URL] [--output-dir OUTPUT_DIR] [--utm-param-name UTM_PARAM_NAME] [--create-pdf] [--pdf-filename PDF_FILE] [--pdf-page-size {letter,a4}] [--create-png] [--png-size SIZE]
 ```
 
 Example:
 
 ```bash
-# Generate SVG QR codes only
+# Generate SVG QR codes from a CSV file
 python qr_generator.py ../sample_data/promo_codes.csv https://example.com/promo --output-dir ../output --utm-param-name promo
+
+# Generate SVG QR codes from a TXT file
+python qr_generator.py ../sample_data/promo_codes.txt https://example.com/promo --output-dir ../output --utm-param-name promo
 
 # Generate QR codes in SVG and PNG formats
 python qr_generator.py ../sample_data/promo_codes.csv https://example.com/promo --create-png --png-size 500
 
 # Generate QR codes in all formats (SVG, PNG, and PDF)
-python qr_generator.py ../sample_data/promo_codes.csv https://example.com/promo --create-png --create-pdf --pdf-page-size a4
+python qr_generator.py ../sample_data/promo_codes.txt https://example.com/promo --create-png --create-pdf --pdf-page-size a4
 ```
 
 ### Interactive Usage
