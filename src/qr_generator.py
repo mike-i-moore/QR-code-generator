@@ -280,17 +280,17 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
                     svg_img.save(svg_output_file)
                 
                 # Compile QR codes into a PDF using the temporary SVG directory
-                success = compile_qr_codes_to_pdf(temp_svg_dir, pdf_filename, pdf_page_size, True)
+                success = compile_qr_codes_to_pdf(temp_svg_dir, pdf_filename, False)
                 
                 # Clean up temporary SVG files
                 import shutil
                 shutil.rmtree(temp_svg_dir)
             else:
                 # Only PNG files were created, use them for the PDF
-                success = compile_qr_codes_to_pdf(output_dir, pdf_filename, pdf_page_size, True, use_png=True)
+                success = compile_qr_codes_to_pdf(output_dir, pdf_filename, False, use_png=True)
         else:
             # SVG files were created, use them for the PDF
-            success = compile_qr_codes_to_pdf(output_dir, pdf_filename, pdf_page_size, True)
+            success = compile_qr_codes_to_pdf(output_dir, pdf_filename, False)
         
         if success:
             print(f"PDF with QR codes has been generated: {pdf_filename}")
@@ -376,7 +376,7 @@ def main():
         print(f"  - PNG size: {png_size}px")
     print(f"- Creating PDF file: {'Yes' if create_pdf else 'No'}")
     if create_pdf:
-        print(f"  - PDF page size: {pdf_page_size}")
+        print(f"  - PDF page size: Custom (matches QR code dimensions)")
     print()
     
     generate_qr_codes(args.input_file, args.base_url, args.output_dir, args.utm_param_name,

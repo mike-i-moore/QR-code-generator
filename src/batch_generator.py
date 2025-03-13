@@ -67,7 +67,7 @@ def get_user_input():
     # PDF options
     create_pdf = False
     pdf_filename = None
-    pdf_page_size = 'letter'
+    pdf_page_size = 'letter'  # This is kept for compatibility but no longer used
     
     if PDF_SUPPORT:
         # If neither SVG nor PNG files are selected, but PDF is requested, we'll temporarily create SVG files
@@ -87,9 +87,7 @@ def get_user_input():
             if pdf_filename_input:
                 pdf_filename = pdf_filename_input
             
-            pdf_page_size_input = input("Enter the page size for the PDF (letter/a4) [default: letter]: ").strip().lower()
-            if pdf_page_size_input == 'a4':
-                pdf_page_size = 'a4'
+            print("Note: Each page in the PDF will be sized to match the QR code dimensions")
     
     return input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, pdf_filename, pdf_page_size, create_png, png_size
 

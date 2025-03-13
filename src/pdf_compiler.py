@@ -3,28 +3,29 @@
 PDF Compiler for QR Codes
 
 This script takes QR codes (PNG or SVG format) and compiles them into a single PDF file,
-with each QR code on a separate page.
+with each QR code on a separate page. Each page is sized to match the dimensions of its QR code.
 """
 
 import os
 import argparse
 import glob
-from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Image, PageBreak, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.lib.pagesizes import letter, A4
 from svglib.svglib import svg2rlg
+from reportlab.lib import pagesizes
 
 
-def compile_qr_codes_to_pdf(input_dir, output_pdf, page_size='letter', include_code_text=True, use_png=False):
+def compile_qr_codes_to_pdf(input_dir, output_pdf, include_code_text=False, use_png=False):
     """
-    Compile QR codes in the input directory into a single PDF file.
+    Compile QR codes in the input directory into a single PDF file,
+    with each page sized to match the dimensions of its QR code.
     
     Args:
         input_dir (str): Directory containing QR codes.
         output_pdf (str): Path to the output PDF file.
-        page_size (str): Page size ('letter' or 'a4').
-        include_code_text (bool): Whether to include the promo code text below each QR code.
+        include_code_text (bool): Whether to include the promo code text below each QR code (deprecated).
         use_png (bool): Whether to use PNG files instead of SVG files.
     """
     # Ensure input directory exists
@@ -50,94 +51,100 @@ def compile_qr_codes_to_pdf(input_dir, output_pdf, page_size='letter', include_c
     # Sort files alphabetically
     qr_files.sort()
     
-    # Set page size
-    if page_size.lower() == 'a4':
-        doc_page_size = A4
-    else:
-        doc_page_size = letter
+    # Create PDF document with a temporary default page size
+    # We'll set actual page sizes during document building
+    doc = SimpleDocTemplate(output_pdf, pagesize=letter)
     
-    # Create the PDF document
-    doc = SimpleDocTemplate(output_pdf, pagesize=doc_page_size)
-    styles = getSampleStyleSheet()
-    story = []
+    # Process each QR code file to get sizes and prepare content
+    pages = []
+    page_sizes = []
     
-    # Add a title page
-    title_style = styles['Title']
-    story.append(Paragraph("QR Codes for Promotional Codes", title_style))
-    story.append(Spacer(1, 0.5*inch))
-    story.append(Paragraph(f"Total QR Codes: {len(qr_files)}", styles['Normal']))
-    story.append(PageBreak())
-    
-    # Process each QR code file
     for qr_file in qr_files:
         # Get the promo code (filename without extension)
         promo_code = os.path.splitext(os.path.basename(qr_file))[0]
         
+        page_content = []
+        
         # Process based on file type
         if use_png:
-            # For PNG files, use the Image class directly
-            max_width = 5 * inch
-            max_height = 5 * inch
-            
-            # Create an Image object
+            # For PNG files, use the Image class
             img = Image(qr_file)
+            # Get original dimensions in points (1/72 inch)
+            width, height = img.imageWidth, img.imageHeight
             
-            # Scale to fit within max dimensions
-            orig_width, orig_height = img.imageWidth, img.imageHeight
-            scale = min(max_width/orig_width, max_height/orig_height)
-            img.drawWidth = orig_width * scale
-            img.drawHeight = orig_height * scale
+            # Use original dimensions without scaling
+            img.drawWidth = width
+            img.drawHeight = height
             
-            # Add PNG image to the PDF
-            story.append(img)
+            # Add to content
+            page_content.append(img)
+            
+            # Set page size to match image size
+            page_sizes.append((width, height))
+            
         else:
             # Convert SVG to ReportLab graphic
             drawing = svg2rlg(qr_file)
             
-            # Calculate QR code size (maintain aspect ratio)
-            max_width = 5 * inch
-            max_height = 5 * inch
+            # Get original dimensions
             width = drawing.width
             height = drawing.height
             
-            # Scale to fit within max dimensions
-            scale = min(max_width/width, max_height/height)
-            drawing.width = width * scale
-            drawing.height = height * scale
+            # Add to content
+            page_content.append(drawing)
             
-            # Add QR code to the PDF
-            story.append(drawing)
+            # Set page size to match drawing size
+            page_sizes.append((width, height))
         
-        # Add the promo code text below the QR code if requested
-        if include_code_text:
-            code_style = styles['Normal']
-            story.append(Spacer(1, 0.25*inch))
-            story.append(Paragraph(f"Promo Code: {promo_code}", code_style))
+        # Add page break
+        if len(qr_files) > 1:  # Only add page break if there's more than one file
+            page_content.append(PageBreak())
         
-        # Add a page break after each QR code except the last one
-        story.append(PageBreak())
+        pages.append(page_content)
     
-    # Build the PDF
-    doc.build(story)
+    # Build PDF with custom page sizes
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    
+    # Create a canvas with the output PDF filename
+    c = canvas.Canvas(output_pdf)
+    
+    # Add each page with its custom size
+    for i, (page_content, page_size) in enumerate(zip(pages, page_sizes)):
+        # Set page size for this specific page
+        c.setPageSize(page_size)
+        
+        # Draw the content on the canvas
+        for item in page_content:
+            if isinstance(item, Image):
+                # For PIL Images
+                item.drawOn(c, 0, 0)
+            else:
+                # For SVG drawings
+                item.drawOn(c, 0, 0)
+        
+        if i < len(pages) - 1:  # Don't add a new page after the last one
+            c.showPage()
+    
+    # Save the PDF
+    c.save()
     print(f"Created PDF with {len(qr_files)} QR codes: {output_pdf}")
     return True
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Compile QR codes into a single PDF file.')
+    parser = argparse.ArgumentParser(description='Compile QR codes into a single PDF file with custom page sizes.')
     parser.add_argument('input_dir', help='Directory containing QR codes or parent directory with svg/ or png/ subfolder')
     parser.add_argument('output_pdf', help='Path to the output PDF file')
-    parser.add_argument('--page-size', choices=['letter', 'a4'], default='letter',
-                        help='Page size (letter or a4)')
     parser.add_argument('--no-code-text', action='store_false', dest='include_code_text',
-                        help='Do not include promo code text below QR codes')
+                        help='Do not include promo code text below QR codes (deprecated, no text is added)')
     parser.add_argument('--use-png', action='store_true', 
                         help='Use PNG files instead of SVG files (default: use SVG)')
     
     args = parser.parse_args()
     
     compile_qr_codes_to_pdf(args.input_dir, args.output_pdf, 
-                          args.page_size, args.include_code_text, args.use_png)
+                          args.include_code_text, args.use_png)
 
 
 if __name__ == '__main__':
