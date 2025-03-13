@@ -13,6 +13,7 @@ import pandas as pd
 import qrcode
 from qrcode.image.svg import SvgFragmentImage
 from qrcode.image.pil import PilImage
+from PIL import Image, ImageDraw, ImageFont
 
 # Import PDF compiler if available
 try:
@@ -116,9 +117,32 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             png_img = qr.make_image(image_factory=PilImage, fill_color="black", back_color="white")
             # Resize the image to the specified size
             png_img = png_img.resize((png_size, png_size))
+            
+            # Create a new image with extra height for the text
+            text_height = png_size // 10  # allocate ~10% of the QR height for text
+            img_with_text = Image.new('RGB', (png_size, png_size + text_height), (255, 255, 255))
+            img_with_text.paste(png_img, (0, 0))
+            
+            # Add the promo code text at the bottom
+            draw = ImageDraw.Draw(img_with_text)
+            
+            # Try to use a default system font, fall back to default if not available
+            try:
+                # Try to find a suitable font
+                font_size = min(24, text_height - 4)  # Adjust font size based on text area
+                font = ImageFont.truetype("Arial", font_size)
+            except IOError:
+                # Fall back to default font if Arial is not available
+                font = ImageFont.load_default()
+            
+            # Draw the promo code centered at the bottom
+            text_width = draw.textlength(promo_code, font=font)
+            text_position = ((png_size - text_width) // 2, png_size + (text_height - font_size) // 2)
+            draw.text(text_position, promo_code, fill="black", font=font)
+            
             png_output_file = os.path.join(png_dir, f"{promo_code}.png")
-            png_img.save(png_output_file)
-            print(f"Generated PNG QR code for {promo_code}")
+            img_with_text.save(png_output_file)
+            print(f"Generated PNG QR code with promo code text for {promo_code}")
     
     print(f"SVG QR codes have been generated in the '{svg_dir}' directory.")
     if create_png:
