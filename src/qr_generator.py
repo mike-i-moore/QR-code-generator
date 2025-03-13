@@ -25,7 +25,7 @@ except ImportError:
 
 def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo', 
                     create_pdf=False, pdf_filename=None, pdf_page_size='letter',
-                    create_png=False, png_size=300):
+                    create_png=False, png_size=300, create_svg=True):
     """
     Generate QR codes from promo codes in a CSV or TXT file.
     
@@ -39,13 +39,16 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
         pdf_page_size (str): Page size for the PDF ('letter' or 'a4'). Default is 'letter'.
         create_png (bool): Whether to create PNG images. Default is False.
         png_size (int): Size of PNG images in pixels. Default is 300.
+        create_svg (bool): Whether to create SVG files. Default is True.
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
     # Create subdirectories for SVG and PNG files
-    svg_dir = os.path.join(output_dir, "svg")
-    os.makedirs(svg_dir, exist_ok=True)
+    svg_dir = None
+    if create_svg:
+        svg_dir = os.path.join(output_dir, "svg")
+        os.makedirs(svg_dir, exist_ok=True)
     
     png_dir = None
     if create_png:
@@ -106,11 +109,12 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
         qr.add_data(full_url)
         qr.make(fit=True)
         
-        # Create SVG image
-        svg_img = qr.make_image(image_factory=SvgFragmentImage)
-        svg_output_file = os.path.join(svg_dir, f"{promo_code}.svg")
-        svg_img.save(svg_output_file)
-        print(f"Generated SVG QR code for {promo_code}: {full_url}")
+        # Create SVG image if requested
+        if create_svg:
+            svg_img = qr.make_image(image_factory=SvgFragmentImage)
+            svg_output_file = os.path.join(svg_dir, f"{promo_code}.svg")
+            svg_img.save(svg_output_file)
+            print(f"Generated SVG QR code for {promo_code}: {full_url}")
         
         # Create PNG image if requested
         if create_png:
@@ -238,7 +242,8 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             combined_img.save(png_output_file, format='PNG', optimize=True, compression=9)
             print(f"Generated high-quality transparent PNG QR code with text for {promo_code}")
     
-    print(f"SVG QR codes have been generated in the '{svg_dir}' directory.")
+    if create_svg:
+        print(f"SVG QR codes have been generated in the '{svg_dir}' directory.")
     if create_png:
         print(f"Transparent PNG QR codes with text have been generated in the '{png_dir}' directory.")
     
@@ -248,8 +253,36 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             # Auto-generate PDF filename based on output directory
             pdf_filename = os.path.join(output_dir, "qr_codes.pdf")
         
-        # Compile QR codes into a PDF - use the SVG directory as source
-        success = compile_qr_codes_to_pdf(svg_dir, pdf_filename, pdf_page_size, True)
+        # For PDF creation, we need SVG files, so generate them temporarily if they don't exist
+        if not create_svg:
+            temp_svg_dir = os.path.join(output_dir, "temp_svg")
+            os.makedirs(temp_svg_dir, exist_ok=True)
+            
+            for promo_code in promo_codes:
+                full_url = f"{base_url}{utm_param_name}={promo_code}"
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=10,
+                    border=4,
+                )
+                qr.add_data(full_url)
+                qr.make(fit=True)
+                
+                svg_img = qr.make_image(image_factory=SvgFragmentImage)
+                svg_output_file = os.path.join(temp_svg_dir, f"{promo_code}.svg")
+                svg_img.save(svg_output_file)
+            
+            # Compile QR codes into a PDF using the temporary SVG directory
+            success = compile_qr_codes_to_pdf(temp_svg_dir, pdf_filename, pdf_page_size, True)
+            
+            # Clean up temporary SVG files
+            import shutil
+            shutil.rmtree(temp_svg_dir)
+        else:
+            # Compile QR codes into a PDF using the existing SVG directory
+            success = compile_qr_codes_to_pdf(svg_dir, pdf_filename, pdf_page_size, True)
+        
         if success:
             print(f"PDF with QR codes has been generated: {pdf_filename}")
         else:
@@ -265,6 +298,10 @@ def main():
     parser.add_argument('--output-dir', default='../output', help='Directory where QR code files will be saved')
     parser.add_argument('--utm-param-name', default='promo', help='Name of the UTM parameter (default: promo)')
     
+    # Add SVG options
+    parser.add_argument('--create-svg', action='store_true', default=True, help='Create SVG vector files (default: True)')
+    parser.add_argument('--no-svg', dest='create_svg', action='store_false', help='Do not create SVG vector files')
+    
     # Add PDF options
     parser.add_argument('--create-pdf', action='store_true', help='Create a PDF with all QR codes')
     parser.add_argument('--pdf-filename', help='Path to the output PDF file (default: [output_dir]/qr_codes.pdf)')
@@ -274,11 +311,68 @@ def main():
     parser.add_argument('--create-png', action='store_true', help='Create transparent PNG images of QR codes with text')
     parser.add_argument('--png-size', type=int, default=300, help='Size of PNG images in pixels (default: 300)')
     
+    # Add interactive mode flag
+    parser.add_argument('--interactive', '-i', action='store_true', help='Run in interactive mode, prompting for file type choices')
+    
     args = parser.parse_args()
     
+    # Interactive mode: Ask user for preferences if --interactive flag is set
+    if args.interactive:
+        # Ask about SVG creation
+        svg_response = input("Generate SVG vector files? (y/n, default: y): ").strip().lower()
+        create_svg = not (svg_response == 'n' or svg_response == 'no')
+        
+        # Ask about PNG creation
+        png_response = input("Generate PNG files? (y/n, default: n): ").strip().lower()
+        create_png = png_response.startswith('y')
+        
+        png_size = args.png_size
+        if create_png:
+            size_response = input(f"PNG size in pixels (default: {png_size}): ").strip()
+            if size_response and size_response.isdigit():
+                png_size = int(size_response)
+                
+        # Ask about PDF creation
+        pdf_response = input("Generate PDF file? (y/n, default: n): ").strip().lower()
+        create_pdf = pdf_response.startswith('y')
+        
+        pdf_filename = args.pdf_filename
+        pdf_page_size = args.pdf_page_size
+        
+        if create_pdf:
+            if PDF_SUPPORT:
+                page_size_response = input(f"PDF page size (letter/a4, default: {pdf_page_size}): ").strip().lower()
+                if page_size_response in ['letter', 'a4']:
+                    pdf_page_size = page_size_response
+            else:
+                print("Warning: PDF creation is not available. Make sure 'pdf_compiler.py' is in the same directory.")
+                create_pdf = False
+    else:
+        # Use command line arguments
+        create_svg = args.create_svg
+        create_png = args.create_png
+        png_size = args.png_size
+        create_pdf = args.create_pdf
+        pdf_filename = args.pdf_filename
+        pdf_page_size = args.pdf_page_size
+    
+    # Confirm the selected options
+    print("\nGenerating QR codes with the following options:")
+    print(f"- Input file: {args.input_file}")
+    print(f"- Base URL: {args.base_url}")
+    print(f"- Output directory: {args.output_dir}")
+    print(f"- Creating SVG files: {'Yes' if create_svg else 'No'}")
+    print(f"- Creating PNG files: {'Yes' if create_png else 'No'}")
+    if create_png:
+        print(f"  - PNG size: {png_size}px")
+    print(f"- Creating PDF file: {'Yes' if create_pdf else 'No'}")
+    if create_pdf:
+        print(f"  - PDF page size: {pdf_page_size}")
+    print()
+    
     generate_qr_codes(args.input_file, args.base_url, args.output_dir, args.utm_param_name,
-                     args.create_pdf, args.pdf_filename, args.pdf_page_size,
-                     args.create_png, args.png_size)
+                     create_pdf, pdf_filename, pdf_page_size,
+                     create_png, png_size, create_svg)
 
 
 if __name__ == '__main__':

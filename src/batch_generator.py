@@ -16,7 +16,7 @@ def get_user_input():
     Prompt the user for input parameters.
     
     Returns:
-        tuple: (input_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size)
+        tuple: (input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, pdf_filename, pdf_page_size, create_png, png_size)
     """
     print("=== QR Code Generator for Promotional Codes ===")
     
@@ -47,8 +47,15 @@ def get_user_input():
     if not utm_param_name:
         utm_param_name = "promo"
     
+    # Ask about file type generation
+    print("\n=== Output File Types ===")
+    
+    # SVG options (new)
+    create_svg_input = input("Do you want to create SVG vector files? (y/n) [default: y]: ").strip().lower()
+    create_svg = not (create_svg_input == 'n' or create_svg_input == 'no')
+    
     # PNG options
-    create_png_input = input("Do you want to create PNG images of QR codes? (y/n) [default: n]: ").strip().lower()
+    create_png_input = input("Do you want to create PNG image files? (y/n) [default: n]: ").strip().lower()
     create_png = create_png_input == 'y' or create_png_input == 'yes'
     
     png_size = 300  # default
@@ -75,19 +82,34 @@ def get_user_input():
             if pdf_page_size_input == 'a4':
                 pdf_page_size = 'a4'
     
-    return input_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size
+    return input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, pdf_filename, pdf_page_size, create_png, png_size
 
 
 def main():
     try:
         # Get user input
-        input_file, base_url, output_dir, utm_param_name, create_pdf, pdf_filename, pdf_page_size, create_png, png_size = get_user_input()
+        input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, pdf_filename, pdf_page_size, create_png, png_size = get_user_input()
+        
+        # Display the summary of selected options
+        print("\n=== Generation Summary ===")
+        print(f"Input file: {input_file}")
+        print(f"Base URL: {base_url}")
+        print(f"Output directory: {output_dir}")
+        print(f"Creating SVG files: {'Yes' if create_svg else 'No'}")
+        print(f"Creating PNG files: {'Yes' if create_png else 'No'}")
+        if create_png:
+            print(f"  - PNG size: {png_size}px")
+        print(f"Creating PDF file: {'Yes' if create_pdf else 'No'}")
+        if create_pdf:
+            print(f"  - PDF page size: {pdf_page_size}")
         
         # Generate QR codes
         print("\nGenerating QR codes...")
+        
+        # Pass all parameters including the new create_svg parameter
         generate_qr_codes(input_file, base_url, output_dir, utm_param_name, 
                         create_pdf, pdf_filename, pdf_page_size,
-                        create_png, png_size)
+                        create_png, png_size, create_svg)
         
         print("\nDone!")
     except KeyboardInterrupt:
