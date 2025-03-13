@@ -114,39 +114,80 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
         
         # Create PNG image if requested
         if create_png:
+            # Create QR code PNG with transparent background
             png_img = qr.make_image(image_factory=PilImage, fill_color="black", back_color="white")
             # Resize the image to the specified size
             png_img = png_img.resize((png_size, png_size))
             
-            # Create a new image with extra height for the text
-            text_height = png_size // 10  # allocate ~10% of the QR height for text
-            img_with_text = Image.new('RGB', (png_size, png_size + text_height), (255, 255, 255))
-            img_with_text.paste(png_img, (0, 0))
+            # Convert to RGBA to support transparency
+            qr_rgba = png_img.convert('RGBA')
             
-            # Add the promo code text at the bottom
-            draw = ImageDraw.Draw(img_with_text)
+            # Replace white with transparent in QR code
+            qr_data = qr_rgba.getdata()
+            new_data = []
+            for item in qr_data:
+                # If pixel is white (or close to white), make it transparent
+                if item[0] > 240 and item[1] > 240 and item[2] > 240:
+                    new_data.append((255, 255, 255, 0))  # White with alpha=0 (transparent)
+                else:
+                    new_data.append(item)  # Keep the original color
+            qr_rgba.putdata(new_data)
             
-            # Try to use a default system font, fall back to default if not available
-            try:
-                # Try to find a suitable font
-                font_size = min(24, text_height - 4)  # Adjust font size based on text area
-                font = ImageFont.truetype("Arial", font_size)
-            except IOError:
-                # Fall back to default font if Arial is not available
-                font = ImageFont.load_default()
+            # Create a text image for the promo code with transparency
+            font_size = png_size // 8  # Scale font with image size
+            text_height = font_size * 2  # Height for text section
             
-            # Draw the promo code centered at the bottom
-            text_width = draw.textlength(promo_code, font=font)
-            text_position = ((png_size - text_width) // 2, png_size + (text_height - font_size) // 2)
-            draw.text(text_position, promo_code, fill="black", font=font)
+            # Create a transparent image for text
+            text_img = Image.new('RGBA', (png_size, text_height), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(text_img)
             
+            # Find a suitable font
+            font = None
+            # Try different fonts with larger size for better quality
+            font_names = ["Arial", "Helvetica", "DejaVuSans", "Verdana", "Tahoma", 
+                         "LiberationSans", "FreeSans", "Arial Unicode"]
+            
+            for font_name in font_names:
+                try:
+                    font = ImageFont.truetype(font_name, font_size)
+                    break
+                except IOError:
+                    continue
+            
+            # If none of the preferred fonts are available, fall back to default
+            if font is None:
+                try:
+                    # On macOS, try this common system font
+                    font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+                except IOError:
+                    # Last resort: use default font
+                    font = ImageFont.load_default()
+            
+            # Calculate text width and position it centered
+            if hasattr(draw, "textlength"):
+                text_width = draw.textlength(promo_code, font=font)
+            else:
+                text_width, _ = draw.textsize(promo_code, font=font)
+                
+            text_position = ((png_size - text_width) // 2, (text_height - font_size) // 2)
+            
+            # Draw the text
+            draw.text(text_position, promo_code, fill=(0, 0, 0, 255), font=font)
+            
+            # Combine the QR code and text images
+            combined_height = qr_rgba.height + text_img.height
+            combined_img = Image.new('RGBA', (png_size, combined_height), (0, 0, 0, 0))
+            combined_img.paste(qr_rgba, (0, 0), qr_rgba)
+            combined_img.paste(text_img, (0, qr_rgba.height), text_img)
+            
+            # Save the combined image with transparency
             png_output_file = os.path.join(png_dir, f"{promo_code}.png")
-            img_with_text.save(png_output_file)
-            print(f"Generated PNG QR code with promo code text for {promo_code}")
+            combined_img.save(png_output_file, format='PNG')
+            print(f"Generated transparent PNG QR code with text for {promo_code}")
     
     print(f"SVG QR codes have been generated in the '{svg_dir}' directory.")
     if create_png:
-        print(f"PNG QR codes have been generated in the '{png_dir}' directory.")
+        print(f"Transparent PNG QR codes with text have been generated in the '{png_dir}' directory.")
     
     # Create a PDF with all QR codes if requested
     if create_pdf and PDF_SUPPORT:
@@ -177,7 +218,7 @@ def main():
     parser.add_argument('--pdf-page-size', choices=['letter', 'a4'], default='letter', help='Page size for the PDF (letter or a4)')
     
     # Add PNG options
-    parser.add_argument('--create-png', action='store_true', help='Create PNG images of QR codes')
+    parser.add_argument('--create-png', action='store_true', help='Create transparent PNG images of QR codes with text')
     parser.add_argument('--png-size', type=int, default=300, help='Size of PNG images in pixels (default: 300)')
     
     args = parser.parse_args()
