@@ -70,7 +70,16 @@ def get_user_input():
     pdf_page_size = 'letter'
     
     if PDF_SUPPORT:
-        create_pdf_input = input("Do you want to create a PDF with all QR codes? (y/n) [default: n]: ").strip().lower()
+        # If neither SVG nor PNG files are selected, but PDF is requested, we'll temporarily create SVG files
+        pdf_notice = ""
+        if not create_svg and not create_png:
+            pdf_notice = " (Note: Temporary SVG files will be created for PDF generation)"
+        elif not create_svg and create_png:
+            pdf_notice = " (PNG files will be used for PDF generation)"
+        elif create_svg:
+            pdf_notice = " (SVG files will be used for PDF generation)"
+            
+        create_pdf_input = input(f"Do you want to create a PDF with all QR codes?{pdf_notice} (y/n) [default: n]: ").strip().lower()
         create_pdf = create_pdf_input == 'y' or create_pdf_input == 'yes'
         
         if create_pdf:

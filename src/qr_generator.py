@@ -253,35 +253,44 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             # Auto-generate PDF filename based on output directory
             pdf_filename = os.path.join(output_dir, "qr_codes.pdf")
         
-        # For PDF creation, we need SVG files, so generate them temporarily if they don't exist
+        # Determine which type of files to use for PDF generation
+        # If SVG files were created, use them
+        # If only PNG files were created, use those instead
+        use_png = not create_svg and create_png
+        
         if not create_svg:
-            temp_svg_dir = os.path.join(output_dir, "temp_svg")
-            os.makedirs(temp_svg_dir, exist_ok=True)
-            
-            for promo_code in promo_codes:
-                full_url = f"{base_url}{utm_param_name}={promo_code}"
-                qr = qrcode.QRCode(
-                    version=1,
-                    error_correction=qrcode.constants.ERROR_CORRECT_L,
-                    box_size=10,
-                    border=4,
-                )
-                qr.add_data(full_url)
-                qr.make(fit=True)
+            if not create_png:
+                # Neither SVG nor PNG files were created, generate temporary SVG files for PDF
+                temp_svg_dir = os.path.join(output_dir, "temp_svg")
+                os.makedirs(temp_svg_dir, exist_ok=True)
                 
-                svg_img = qr.make_image(image_factory=SvgFragmentImage)
-                svg_output_file = os.path.join(temp_svg_dir, f"{promo_code}.svg")
-                svg_img.save(svg_output_file)
-            
-            # Compile QR codes into a PDF using the temporary SVG directory
-            success = compile_qr_codes_to_pdf(temp_svg_dir, pdf_filename, pdf_page_size, True)
-            
-            # Clean up temporary SVG files
-            import shutil
-            shutil.rmtree(temp_svg_dir)
+                for promo_code in promo_codes:
+                    full_url = f"{base_url}{utm_param_name}={promo_code}"
+                    qr = qrcode.QRCode(
+                        version=1,
+                        error_correction=qrcode.constants.ERROR_CORRECT_L,
+                        box_size=10,
+                        border=4,
+                    )
+                    qr.add_data(full_url)
+                    qr.make(fit=True)
+                    
+                    svg_img = qr.make_image(image_factory=SvgFragmentImage)
+                    svg_output_file = os.path.join(temp_svg_dir, f"{promo_code}.svg")
+                    svg_img.save(svg_output_file)
+                
+                # Compile QR codes into a PDF using the temporary SVG directory
+                success = compile_qr_codes_to_pdf(temp_svg_dir, pdf_filename, pdf_page_size, True)
+                
+                # Clean up temporary SVG files
+                import shutil
+                shutil.rmtree(temp_svg_dir)
+            else:
+                # Only PNG files were created, use them for the PDF
+                success = compile_qr_codes_to_pdf(output_dir, pdf_filename, pdf_page_size, True, use_png=True)
         else:
-            # Compile QR codes into a PDF using the existing SVG directory
-            success = compile_qr_codes_to_pdf(svg_dir, pdf_filename, pdf_page_size, True)
+            # SVG files were created, use them for the PDF
+            success = compile_qr_codes_to_pdf(output_dir, pdf_filename, pdf_page_size, True)
         
         if success:
             print(f"PDF with QR codes has been generated: {pdf_filename}")
