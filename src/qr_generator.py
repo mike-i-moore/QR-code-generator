@@ -13,7 +13,7 @@ import pandas as pd
 import qrcode
 from qrcode.image.svg import SvgFragmentImage
 from qrcode.image.pil import PilImage
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 # Import PDF compiler if available
 try:
@@ -134,21 +134,24 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             qr_rgba.putdata(new_data)
             
             # Create a text image for the promo code with transparency
-            # Create at 3x resolution for better downsampling later
-            scale_factor = 3
+            # Create at a much higher resolution for better downsampling later
+            scale_factor = 6  # Increased from 3 to 6 for even better quality
             font_size = (png_size // 8) * scale_factor  # Scale font with image size (at higher resolution)
             text_height = font_size * 2  # Height for text section
             text_width_prelim = png_size * scale_factor  # Initial width at high resolution
             
-            # Create a high-resolution transparent image for text
+            # Create a high-resolution transparent image for text with padding
             text_img_high_res = Image.new('RGBA', (text_width_prelim, text_height), (0, 0, 0, 0))
             draw = ImageDraw.Draw(text_img_high_res)
             
-            # Find a suitable font - preferably a TrueType/OpenType font for better scaling
+            # Find a suitable font - preferably a bold TrueType/OpenType font for better scaling
             font = None
-            # Try different fonts with larger size for better quality
-            font_names = ["Arial", "Helvetica", "DejaVuSans", "Verdana", "Tahoma", 
-                         "LiberationSans", "FreeSans", "Arial Unicode"]
+            # Try different fonts with larger size for better quality - prioritize bold fonts
+            font_names = [
+                "Arial Bold", "Arial-Bold", "Helvetica-Bold", "Helvetica Bold", 
+                "DejaVuSans-Bold", "Verdana-Bold", "Tahoma-Bold", 
+                "Arial", "Helvetica", "DejaVuSans", "Verdana", "Tahoma"
+            ]
             
             for font_name in font_names:
                 try:
@@ -157,24 +160,31 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
                 except IOError:
                     continue
             
-            # If none of the preferred fonts are available, fall back to default
+            # If none of the preferred fonts are available, fall back to system fonts
             if font is None:
                 try:
-                    # On macOS, try these common system fonts
-                    for mac_font in ["/System/Library/Fonts/Helvetica.ttc", 
-                                   "/System/Library/Fonts/SFNSDisplay.ttf",
-                                   "/System/Library/Fonts/SFNSText.ttf", 
-                                   "/Library/Fonts/Arial.ttf"]:
+                    # On macOS, try these common system fonts - prioritize bold fonts
+                    mac_fonts = [
+                        "/System/Library/Fonts/SFNSDisplay-Bold.otf",
+                        "/System/Library/Fonts/Helvetica-Bold.ttc",
+                        "/Library/Fonts/Arial Bold.ttf",
+                        "/System/Library/Fonts/SFNSDisplay-Heavy.otf",
+                        "/System/Library/Fonts/Helvetica.ttc", 
+                        "/System/Library/Fonts/SFNSDisplay.ttf",
+                        "/System/Library/Fonts/SFNSText.ttf", 
+                        "/Library/Fonts/Arial.ttf"
+                    ]
+                    for mac_font in mac_fonts:
                         try:
                             font = ImageFont.truetype(mac_font, font_size)
                             break
                         except IOError:
                             continue
-                except IOError:
+                except Exception:
                     # Last resort: use default font
                     font = ImageFont.load_default()
                     # Adjust for default font which may be lower quality
-                    font_size = text_height // 2
+                    font_size = text_height // 3
             
             # Calculate text width and position it centered
             if hasattr(draw, "textlength"):
@@ -186,32 +196,53 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
                 
             text_position = ((text_width_prelim - text_width) // 2, (text_height - font_size) // 2)
             
-            # Draw the text with antialiasing by using the alpha channel
-            # First draw the text with a slight blur for better antialiasing (optional)
-            # for offset_x, offset_y in [(1, 1), (-1, -1), (1, -1), (-1, 1)]:
-            #     draw.text((text_position[0] + offset_x, text_position[1] + offset_y), 
-            #              promo_code, fill=(0, 0, 0, 30), font=font)
+            # Draw the text with advanced anti-aliasing techniques
             
-            # Draw the main text
+            # 1. First add a subtle shadow/glow for better edge definition
+            shadow_offsets = [(1, 1), (-1, -1), (1, -1), (-1, 1), 
+                             (2, 0), (-2, 0), (0, 2), (0, -2)]
+            
+            for offset_x, offset_y in shadow_offsets:
+                draw.text((text_position[0] + offset_x, text_position[1] + offset_y), 
+                         promo_code, fill=(0, 0, 0, 30), font=font)
+            
+            # 2. Draw outline/stroke around the text for better definition
+            stroke_offsets = [(1, 0), (-1, 0), (0, 1), (0, -1), 
+                             (1, 1), (-1, -1), (1, -1), (-1, 1)]
+            
+            for offset_x, offset_y in stroke_offsets:
+                draw.text((text_position[0] + offset_x, text_position[1] + offset_y), 
+                         promo_code, fill=(0, 0, 0, 180), font=font)
+            
+            # 3. Draw the main text
             draw.text(text_position, promo_code, fill=(0, 0, 0, 255), font=font)
             
-            # Downscale the high-resolution text image to the target size
+            # 4. Apply a very slight blur for anti-aliasing (0.3-0.5 radius is usually good)
+            text_img_high_res = text_img_high_res.filter(ImageFilter.GaussianBlur(0.4))
+            
+            # 5. Sharpen slightly to maintain crispness while keeping anti-aliasing
+            from PIL import ImageEnhance
+            enhancer = ImageEnhance.Sharpness(text_img_high_res)
+            text_img_high_res = enhancer.enhance(1.3)  # Slight sharpening
+            
+            # 6. Downscale the high-resolution text image to the target size
             # using high-quality resampling for smoother results
             text_img = text_img_high_res.resize(
                 (png_size, text_height // scale_factor), 
                 Image.Resampling.LANCZOS
             )
             
-            # Combine the QR code and text images
-            combined_height = qr_rgba.height + text_img.height
+            # Combine the QR code and text images with a slight spacing
+            spacing = 5  # Add a small spacing between QR code and text
+            combined_height = qr_rgba.height + text_img.height + spacing
             combined_img = Image.new('RGBA', (png_size, combined_height), (0, 0, 0, 0))
             combined_img.paste(qr_rgba, (0, 0), qr_rgba)
-            combined_img.paste(text_img, (0, qr_rgba.height), text_img)
+            combined_img.paste(text_img, (0, qr_rgba.height + spacing), text_img)
             
-            # Save the combined image with transparency
+            # Save the combined image with transparency and optimal compression
             png_output_file = os.path.join(png_dir, f"{promo_code}.png")
-            combined_img.save(png_output_file, format='PNG')
-            print(f"Generated transparent PNG QR code with text for {promo_code}")
+            combined_img.save(png_output_file, format='PNG', optimize=True, compression=9)
+            print(f"Generated high-quality transparent PNG QR code with text for {promo_code}")
     
     print(f"SVG QR codes have been generated in the '{svg_dir}' directory.")
     if create_png:
