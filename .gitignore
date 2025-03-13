@@ -8,3 +8,10 @@ output/pdf_test/
 
 # OS specific files
 .DS_Store
+
+# Old output directories
+output/all_formats/
+output/isolated_test/
+output/png_test/
+output/separate_folders/
+output/test_pdf/
