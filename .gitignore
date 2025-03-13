@@ -1,17 +1,1 @@
-# Generated output directories
-output/*test*/
-output/final_test/
-output/vector_like_*/
-output/font_improved_*/
-output/long_code_test/
-output/pdf_test/
-
-# OS specific files
-.DS_Store
-
-# Old output directories
-output/all_formats/
-output/isolated_test/
-output/png_test/
-output/separate_folders/
-output/test_pdf/
+ 
