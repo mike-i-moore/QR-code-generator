@@ -135,8 +135,8 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             
             # Create a text image for the promo code with transparency
             # Create at a much higher resolution for better downsampling later
-            scale_factor = 6  # Increased from 3 to 6 for even better quality
-            font_size = (png_size // 8) * scale_factor  # Scale font with image size (at higher resolution)
+            scale_factor = 8  # Increased for even better quality but balanced for font size
+            font_size = (png_size // 12) * scale_factor  # Reduced font size with a larger divisor (was 8)
             text_height = font_size * 2  # Height for text section
             text_width_prelim = png_size * scale_factor  # Initial width at high resolution
             
@@ -144,13 +144,12 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             text_img_high_res = Image.new('RGBA', (text_width_prelim, text_height), (0, 0, 0, 0))
             draw = ImageDraw.Draw(text_img_high_res)
             
-            # Find a suitable font - preferably a bold TrueType/OpenType font for better scaling
+            # Find a suitable font - prioritize regular (non-bold) fonts for better scaling
             font = None
-            # Try different fonts with larger size for better quality - prioritize bold fonts
+            # Try different fonts with larger size for better quality - prioritize regular fonts
             font_names = [
-                "Arial Bold", "Arial-Bold", "Helvetica-Bold", "Helvetica Bold", 
-                "DejaVuSans-Bold", "Verdana-Bold", "Tahoma-Bold", 
-                "Arial", "Helvetica", "DejaVuSans", "Verdana", "Tahoma"
+                "Arial", "Helvetica", "DejaVuSans", "Verdana", "Tahoma",
+                "SF Pro Text", "Roboto", "Open Sans"
             ]
             
             for font_name in font_names:
@@ -163,16 +162,13 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             # If none of the preferred fonts are available, fall back to system fonts
             if font is None:
                 try:
-                    # On macOS, try these common system fonts - prioritize bold fonts
+                    # On macOS, try these common system fonts - prioritize regular fonts
                     mac_fonts = [
-                        "/System/Library/Fonts/SFNSDisplay-Bold.otf",
-                        "/System/Library/Fonts/Helvetica-Bold.ttc",
-                        "/Library/Fonts/Arial Bold.ttf",
-                        "/System/Library/Fonts/SFNSDisplay-Heavy.otf",
+                        "/System/Library/Fonts/SFNSText-Regular.otf",
                         "/System/Library/Fonts/Helvetica.ttc", 
+                        "/Library/Fonts/Arial.ttf",
                         "/System/Library/Fonts/SFNSDisplay.ttf",
-                        "/System/Library/Fonts/SFNSText.ttf", 
-                        "/Library/Fonts/Arial.ttf"
+                        "/System/Library/Fonts/SFNSText.ttf"
                     ]
                     for mac_font in mac_fonts:
                         try:
@@ -199,31 +195,29 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             # Draw the text with advanced anti-aliasing techniques
             
             # 1. First add a subtle shadow/glow for better edge definition
-            shadow_offsets = [(1, 1), (-1, -1), (1, -1), (-1, 1), 
-                             (2, 0), (-2, 0), (0, 2), (0, -2)]
+            shadow_offsets = [(1, 1), (-1, -1), (1, -1), (-1, 1)]
             
             for offset_x, offset_y in shadow_offsets:
                 draw.text((text_position[0] + offset_x, text_position[1] + offset_y), 
-                         promo_code, fill=(0, 0, 0, 30), font=font)
+                         promo_code, fill=(0, 0, 0, 20), font=font)
             
-            # 2. Draw outline/stroke around the text for better definition
-            stroke_offsets = [(1, 0), (-1, 0), (0, 1), (0, -1), 
-                             (1, 1), (-1, -1), (1, -1), (-1, 1)]
+            # 2. Draw outline/stroke around the text for better definition (thinner outline for non-bold)
+            stroke_offsets = [(1, 0), (-1, 0), (0, 1), (0, -1)]
             
             for offset_x, offset_y in stroke_offsets:
                 draw.text((text_position[0] + offset_x, text_position[1] + offset_y), 
-                         promo_code, fill=(0, 0, 0, 180), font=font)
+                         promo_code, fill=(0, 0, 0, 100), font=font)
             
             # 3. Draw the main text
             draw.text(text_position, promo_code, fill=(0, 0, 0, 255), font=font)
             
-            # 4. Apply a very slight blur for anti-aliasing (0.3-0.5 radius is usually good)
-            text_img_high_res = text_img_high_res.filter(ImageFilter.GaussianBlur(0.4))
+            # 4. Apply a very slight blur for anti-aliasing (reduced for sharper text)
+            text_img_high_res = text_img_high_res.filter(ImageFilter.GaussianBlur(0.3))
             
-            # 5. Sharpen slightly to maintain crispness while keeping anti-aliasing
+            # 5. Sharpen more to maintain crispness while keeping anti-aliasing
             from PIL import ImageEnhance
             enhancer = ImageEnhance.Sharpness(text_img_high_res)
-            text_img_high_res = enhancer.enhance(1.3)  # Slight sharpening
+            text_img_high_res = enhancer.enhance(1.5)  # Increased sharpening for better definition
             
             # 6. Downscale the high-resolution text image to the target size
             # using high-quality resampling for smoother results
