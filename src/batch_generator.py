@@ -16,7 +16,7 @@ def get_user_input():
     Prompt the user for input parameters.
     
     Returns:
-        tuple: (input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, pdf_filename, pdf_page_size, create_png, png_size)
+        tuple: Input parameters for QR code generation including PDF title page options.
     """
     print("=== QR Code Generator for Promotional Codes ===")
     
@@ -68,6 +68,8 @@ def get_user_input():
     create_pdf = False
     pdf_filename = None
     pdf_page_size = 'letter'  # This is kept for compatibility but no longer used
+    pdf_prepared_for = None
+    pdf_title = "QR Codes Collection"
     
     if PDF_SUPPORT:
         # If neither SVG nor PNG files are selected, but PDF is requested, we'll temporarily create SVG files
@@ -88,14 +90,26 @@ def get_user_input():
                 pdf_filename = pdf_filename_input
             
             print("Note: Each page in the PDF will be sized to match the QR code dimensions")
+            
+            # Ask for PDF title
+            pdf_title_input = input(f"Enter the title for the PDF [default: '{pdf_title}']: ").strip()
+            if pdf_title_input:
+                pdf_title = pdf_title_input
+            
+            # Ask for PDF recipient
+            pdf_prepared_for_input = input("Enter the name of the recipient (leave blank for manual entry): ").strip()
+            if pdf_prepared_for_input:
+                pdf_prepared_for = pdf_prepared_for_input
     
-    return input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, pdf_filename, pdf_page_size, create_png, png_size
+    return (input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, 
+            pdf_filename, pdf_page_size, create_png, png_size, pdf_prepared_for, pdf_title)
 
 
 def main():
     try:
         # Get user input
-        input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf, pdf_filename, pdf_page_size, create_png, png_size = get_user_input()
+        (input_file, base_url, output_dir, utm_param_name, create_svg, create_pdf,
+         pdf_filename, pdf_page_size, create_png, png_size, pdf_prepared_for, pdf_title) = get_user_input()
         
         # Display the summary of selected options
         print("\n=== Generation Summary ===")
@@ -108,15 +122,21 @@ def main():
             print(f"  - PNG size: {png_size}px")
         print(f"Creating PDF file: {'Yes' if create_pdf else 'No'}")
         if create_pdf:
-            print(f"  - PDF page size: {pdf_page_size}")
+            print(f"  - PDF page size: Custom (matches QR code dimensions)")
+            print(f"  - PDF title: {pdf_title}")
+            if pdf_prepared_for:
+                print(f"  - PDF prepared for: {pdf_prepared_for}")
+            else:
+                print(f"  - PDF prepared for: [Manual entry]")
         
         # Generate QR codes
         print("\nGenerating QR codes...")
         
-        # Pass all parameters including the new create_svg parameter
+        # Pass all parameters
         generate_qr_codes(input_file, base_url, output_dir, utm_param_name, 
                         create_pdf, pdf_filename, pdf_page_size,
-                        create_png, png_size, create_svg)
+                        create_png, png_size, create_svg,
+                        pdf_prepared_for, pdf_title)
         
         print("\nDone!")
     except KeyboardInterrupt:

@@ -25,7 +25,8 @@ except ImportError:
 
 def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo', 
                     create_pdf=False, pdf_filename=None, pdf_page_size='letter',
-                    create_png=False, png_size=300, create_svg=True):
+                    create_png=False, png_size=300, create_svg=True,
+                    pdf_prepared_for=None, pdf_title="QR Codes Collection"):
     """
     Generate QR codes from promo codes in a CSV or TXT file.
     
@@ -40,6 +41,8 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
         create_png (bool): Whether to create PNG images. Default is False.
         png_size (int): Size of PNG images in pixels. Default is 300.
         create_svg (bool): Whether to create SVG files. Default is True.
+        pdf_prepared_for (str): Name of the recipient for whom the PDF is prepared. Default is None.
+        pdf_title (str): Title to display on the PDF title page. Default is "QR Codes Collection".
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -280,17 +283,26 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
                     svg_img.save(svg_output_file)
                 
                 # Compile QR codes into a PDF using the temporary SVG directory
-                success = compile_qr_codes_to_pdf(temp_svg_dir, pdf_filename, False)
+                success = compile_qr_codes_to_pdf(
+                    temp_svg_dir, pdf_filename, False, False,
+                    pdf_prepared_for, pdf_title
+                )
                 
                 # Clean up temporary SVG files
                 import shutil
                 shutil.rmtree(temp_svg_dir)
             else:
                 # Only PNG files were created, use them for the PDF
-                success = compile_qr_codes_to_pdf(output_dir, pdf_filename, False, use_png=True)
+                success = compile_qr_codes_to_pdf(
+                    output_dir, pdf_filename, False, True,
+                    pdf_prepared_for, pdf_title
+                )
         else:
             # SVG files were created, use them for the PDF
-            success = compile_qr_codes_to_pdf(output_dir, pdf_filename, False)
+            success = compile_qr_codes_to_pdf(
+                output_dir, pdf_filename, False, False,
+                pdf_prepared_for, pdf_title
+            )
         
         if success:
             print(f"PDF with QR codes has been generated: {pdf_filename}")
@@ -315,6 +327,8 @@ def main():
     parser.add_argument('--create-pdf', action='store_true', help='Create a PDF with all QR codes')
     parser.add_argument('--pdf-filename', help='Path to the output PDF file (default: [output_dir]/qr_codes.pdf)')
     parser.add_argument('--pdf-page-size', choices=['letter', 'a4'], default='letter', help='Page size for the PDF (letter or a4)')
+    parser.add_argument('--pdf-prepared-for', help='Name of the recipient for whom the PDF is prepared')
+    parser.add_argument('--pdf-title', default="QR Codes Collection", help='Title to display on the PDF title page')
     
     # Add PNG options
     parser.add_argument('--create-png', action='store_true', help='Create transparent PNG images of QR codes with text')
@@ -347,12 +361,20 @@ def main():
         
         pdf_filename = args.pdf_filename
         pdf_page_size = args.pdf_page_size
+        pdf_prepared_for = args.pdf_prepared_for
+        pdf_title = args.pdf_title
         
         if create_pdf:
             if PDF_SUPPORT:
-                page_size_response = input(f"PDF page size (letter/a4, default: {pdf_page_size}): ").strip().lower()
-                if page_size_response in ['letter', 'a4']:
-                    pdf_page_size = page_size_response
+                # Ask for PDF title
+                pdf_title_input = input(f"PDF title [default: {pdf_title}]: ").strip()
+                if pdf_title_input:
+                    pdf_title = pdf_title_input
+                
+                # Ask for PDF recipient
+                pdf_prepared_for_input = input("PDF prepared for (leave blank for manual entry): ").strip()
+                if pdf_prepared_for_input:
+                    pdf_prepared_for = pdf_prepared_for_input
             else:
                 print("Warning: PDF creation is not available. Make sure 'pdf_compiler.py' is in the same directory.")
                 create_pdf = False
@@ -364,6 +386,8 @@ def main():
         create_pdf = args.create_pdf
         pdf_filename = args.pdf_filename
         pdf_page_size = args.pdf_page_size
+        pdf_prepared_for = args.pdf_prepared_for
+        pdf_title = args.pdf_title
     
     # Confirm the selected options
     print("\nGenerating QR codes with the following options:")
@@ -377,11 +401,17 @@ def main():
     print(f"- Creating PDF file: {'Yes' if create_pdf else 'No'}")
     if create_pdf:
         print(f"  - PDF page size: Custom (matches QR code dimensions)")
+        print(f"  - PDF title: {pdf_title}")
+        if pdf_prepared_for:
+            print(f"  - PDF prepared for: {pdf_prepared_for}")
+        else:
+            print(f"  - PDF prepared for: [Manual entry]")
     print()
     
     generate_qr_codes(args.input_file, args.base_url, args.output_dir, args.utm_param_name,
                      create_pdf, pdf_filename, pdf_page_size,
-                     create_png, png_size, create_svg)
+                     create_png, png_size, create_svg,
+                     pdf_prepared_for, pdf_title)
 
 
 if __name__ == '__main__':
