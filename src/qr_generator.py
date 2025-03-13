@@ -134,14 +134,17 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             qr_rgba.putdata(new_data)
             
             # Create a text image for the promo code with transparency
-            font_size = png_size // 8  # Scale font with image size
+            # Create at 3x resolution for better downsampling later
+            scale_factor = 3
+            font_size = (png_size // 8) * scale_factor  # Scale font with image size (at higher resolution)
             text_height = font_size * 2  # Height for text section
+            text_width_prelim = png_size * scale_factor  # Initial width at high resolution
             
-            # Create a transparent image for text
-            text_img = Image.new('RGBA', (png_size, text_height), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(text_img)
+            # Create a high-resolution transparent image for text
+            text_img_high_res = Image.new('RGBA', (text_width_prelim, text_height), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(text_img_high_res)
             
-            # Find a suitable font
+            # Find a suitable font - preferably a TrueType/OpenType font for better scaling
             font = None
             # Try different fonts with larger size for better quality
             font_names = ["Arial", "Helvetica", "DejaVuSans", "Verdana", "Tahoma", 
@@ -157,22 +160,47 @@ def generate_qr_codes(input_file, base_url, output_dir, utm_param_name='promo',
             # If none of the preferred fonts are available, fall back to default
             if font is None:
                 try:
-                    # On macOS, try this common system font
-                    font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+                    # On macOS, try these common system fonts
+                    for mac_font in ["/System/Library/Fonts/Helvetica.ttc", 
+                                   "/System/Library/Fonts/SFNSDisplay.ttf",
+                                   "/System/Library/Fonts/SFNSText.ttf", 
+                                   "/Library/Fonts/Arial.ttf"]:
+                        try:
+                            font = ImageFont.truetype(mac_font, font_size)
+                            break
+                        except IOError:
+                            continue
                 except IOError:
                     # Last resort: use default font
                     font = ImageFont.load_default()
+                    # Adjust for default font which may be lower quality
+                    font_size = text_height // 2
             
             # Calculate text width and position it centered
             if hasattr(draw, "textlength"):
+                # Newer Pillow versions
                 text_width = draw.textlength(promo_code, font=font)
             else:
+                # For older Pillow versions
                 text_width, _ = draw.textsize(promo_code, font=font)
                 
-            text_position = ((png_size - text_width) // 2, (text_height - font_size) // 2)
+            text_position = ((text_width_prelim - text_width) // 2, (text_height - font_size) // 2)
             
-            # Draw the text
+            # Draw the text with antialiasing by using the alpha channel
+            # First draw the text with a slight blur for better antialiasing (optional)
+            # for offset_x, offset_y in [(1, 1), (-1, -1), (1, -1), (-1, 1)]:
+            #     draw.text((text_position[0] + offset_x, text_position[1] + offset_y), 
+            #              promo_code, fill=(0, 0, 0, 30), font=font)
+            
+            # Draw the main text
             draw.text(text_position, promo_code, fill=(0, 0, 0, 255), font=font)
+            
+            # Downscale the high-resolution text image to the target size
+            # using high-quality resampling for smoother results
+            text_img = text_img_high_res.resize(
+                (png_size, text_height // scale_factor), 
+                Image.Resampling.LANCZOS
+            )
             
             # Combine the QR code and text images
             combined_height = qr_rgba.height + text_img.height
