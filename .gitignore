@@ -10,3 +10,4 @@ venv/
 .venv
 qr_env/
 output/
+.DS_Store
